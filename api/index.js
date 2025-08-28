@@ -1,95 +1,63 @@
-// File: api/index.js
+// api/index.js
 const express = require('express');
 const { v4: uuidv4 } = require('uuid');
 const QRCode = require('qrcode');
 
 const app = express();
-
-// Parse JSON bodies
 app.use(express.json());
 
-// Armazenamento em memória (volátil por instância)
+// armazenamento em memória
 const orders = [];
 
-/**
- * Healthcheck / info
- */
-app.get('/', (req, res) => {
+// helper para aceitar /rota e /api/rota
+const both = (path) => [path, path.startsWith('/api') ? path.replace(/^\/api/, '') : `/api${path}`];
+
+// Health
+app.get(both('/api'), (_req, res) => {
   res.json({
     status: 'ok',
-    message: 'Ticket API running',
     routes: {
-      checkout: { method: 'POST', path: '/checkout' },
-      ticket: { method: 'GET', path: '/ticket/:id' },
+      checkout: ['POST /api/checkout', 'POST /checkout'],
+      ticket: ['GET /api/ticket/:id', 'GET /ticket/:id'],
     },
-    note: 'Na Vercel, estas rotas ficam acessíveis como /api/checkout e /api/ticket/:id',
   });
 });
 
-/**
- * POST /checkout
- * Body JSON: { name, email, ticketType }
- * Gera ID do pedido, QR Code base64 e salva em memória
- */
-app.post('/checkout', async (req, res) => {
+// POST /api/checkout (e /checkout)
+app.post(both('/api/checkout'), async (req, res) => {
   try {
     const { name, email, ticketType } = req.body || {};
-
-    // validações mínimas
     if (!name || !email || !ticketType) {
-      return res.status(400).json({
-        error: 'Campos obrigatórios: name, email, ticketType',
-      });
+      return res.status(400).json({ error: 'Campos obrigatórios: name, email, ticketType' });
     }
 
     const id = uuidv4();
     const createdAt = new Date().toISOString();
     const order = { id, name, email, ticketType, createdAt };
 
-    // Dados codificados no QR (JSON)
-    const qrPayload = JSON.stringify(order);
-
-    // Gera QR base64 (data URL)
-    const qr = await QRCode.toDataURL(qrPayload, {
-      errorCorrectionLevel: 'M', // bom equilíbrio entre tamanho e robustez
+    const qr = await QRCode.toDataURL(JSON.stringify(order), {
+      errorCorrectionLevel: 'M',
       type: 'image/png',
       margin: 1,
       scale: 6,
     });
 
-    // salva em memória (inclui o QR junto para facilitar consulta)
     const stored = { ...order, qr };
     orders.push(stored);
 
-    return res.status(201).json({
-      id,
-      qr,        // data:image/png;base64,....
-      order: stored,
-    });
+    res.status(201).json({ id, qr, order: stored });
   } catch (err) {
     console.error('Checkout error:', err);
-    return res.status(500).json({ error: 'Erro ao processar checkout' });
+    res.status(500).json({ error: 'Erro ao processar checkout' });
   }
 });
 
-/**
- * GET /ticket/:id
- * Retorna os dados do pedido + QR base64
- */
-app.get('/ticket/:id', (req, res) => {
-  const { id } = req.params;
-  const order = orders.find((o) => o.id === id);
-
-  if (!order) {
-    return res.status(404).json({ error: 'Pedido não encontrado' });
-  }
-
-  return res.json({
-    id: order.id,
-    qr: order.qr, // data URL base64
-    order,
-  });
+// GET /api/ticket/:id (e /ticket/:id)
+app.get(both('/api/ticket/:id'), (req, res) => {
+  const order = orders.find(o => o.id === req.params.id);
+  if (!order) return res.status(404).json({ error: 'Pedido não encontrado' });
+  res.json({ id: order.id, qr: order.qr, order });
 });
 
-// Exporta o app para funcionar como Serverless Function na Vercel
+// export para Vercel
 module.exports = app;
