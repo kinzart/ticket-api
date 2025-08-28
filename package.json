@@ -3,11 +3,14 @@
   "private": true,
   "type": "commonjs",
   "dependencies": {
+    "@upstash/redis": "^1.35.3",
     "@vercel/kv": "^1.0.0",
     "express": "^4.21.2",
-     "express-rate-limit": "^7.4.0",
+    "express-rate-limit": "^7.4.0",
     "qrcode": "^1.5.4",
     "uuid": "^9.0.1"
   },
-  "engines": { "node": "20.x" }
+  "engines": {
+    "node": "20.x"
+  }
 }

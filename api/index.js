@@ -5,6 +5,12 @@ const QRCode = require('qrcode');
 const crypto = require('crypto');
 const rateLimit = require('express-rate-limit');
 const { kv } = require('@vercel/kv');
+import { Redis } from '@upstash/redis'
+const redis = new Redis({
+  url: process.env.UPSTASH_REDIS_REST_URL,
+  token: process.env.UPSTASH_REDIS_REST_TOKEN
+});
+
 
 const app = express();
 app.use(express.json({ limit: '256kb' }));
