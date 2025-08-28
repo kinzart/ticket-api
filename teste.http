@@ -3,7 +3,7 @@ POST https://ticket-api-murex.vercel.app/api/checkout
 Content-Type: application/json
 
 {
-  "name": "Ricardo",
-  "email": "ayresbh@gmail.com.br",
+  "name": "Maria",
+  "email": "kinzartmusica@gmail.com.br",
   "ticketType": "VIP"
 }
