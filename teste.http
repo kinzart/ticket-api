@@ -1,9 +1,32 @@
-### Criar pedido
+### Health
+GET https://ticket-api-murex.vercel.app/api
+
+### Checkout
 POST https://ticket-api-murex.vercel.app/api/checkout
 Content-Type: application/json
 
 {
-  "name": "Maria",
-  "email": "kinzartmusica@gmail.com.br",
+  "name": "Ricardo Dois",
+  "email": "ayresbh@gmail.com.br",
   "ticketType": "VIP"
 }
+
+### Ticket
+GET https://ticket-api-murex.vercel.app/api/ticket/{{id}}
+
+### Verify (cole payload e sig se quiser testar direto)
+POST https://ticket-api-murex.vercel.app/api/verify
+Content-Type: application/json
+
+{
+  "payload": "{{payload}}",
+  "sig": "{{sig}}"
+}
+
+### Admin list
+GET https://ticket-api-murex.vercel.app/api/admin/orders?limit=20
+Authorization: Bearer {{ADMIN_TOKEN}}
+
+### Admin get
+GET https://ticket-api-murex.vercel.app/api/admin/order/{{id}}
+Authorization: Bearer {{ADMIN_TOKEN}}
