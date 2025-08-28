@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Ticket API · Painel</title>
+  <!-- Tailwind via CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <meta name="color-scheme" content="light dark" />
+  <style>
+    :root { color-scheme: light dark; }
+    .card { @apply bg-white/70 dark:bg-zinc-900/70 backdrop-blur rounded-2xl shadow p-5 border border-zinc-200/60 dark:border-zinc-800; }
+    .btn { @apply inline-flex items-center justify-center rounded-xl px-4 py-2 font-medium border border-transparent shadow-sm; }
+    .btn-primary { @apply btn bg-indigo-600 hover:bg-indigo-700 text-white; }
+    .btn-ghost { @apply btn bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-zinc-900 dark:text-zinc-100; }
+    .input { @apply block w-full rounded-xl border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 shadow-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500; }
+    .label { @apply text-sm font-medium text-zinc-700 dark:text-zinc-300; }
+    .section-title { @apply text-lg font-semibold text-zinc-900 dark:text-zinc-100; }
+  </style>
+</head>
+<body class="bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 min-h-screen">
+  <div class="max-w-6xl mx-auto px-4 py-8 space-y-8">
+    <header class="flex items-center justify-between">
+      <h1 class="text-2xl md:text-3xl font-bold tracking-tight">Ticket API · Painel</h1>
+      <div class="flex items-center gap-3">
+        <button id="exportCsvBtn" class="btn-ghost">Exportar CSV</button>
+        <a href="#" id="healthBtn" class="btn-ghost">Status</a>
+        <a href="/api" class="btn-ghost" target="_blank" rel="noreferrer">/api</a>
+      </div>
+    </header>
+
+    <!-- Configurações -->
+    <section class="card">
+      <h2 class="section-title mb-4">Configurações</h2>
+      <div class="grid md:grid-cols-3 gap-4">
+        <div>
+          <label class="label">Base URL (opcional)</label>
+          <input id="baseUrl" class="input" placeholder="ex.: https://seu-projeto.vercel.app" />
+          <p class="text-xs text-zinc-500 mt-1">Se vazio, usa <code>window.location.origin</code>.</p>
+        </div>
+        <div>
+          <label class="label">ADMIN_TOKEN</label>
+          <input id="adminToken" class="input" placeholder="Bearer token para rotas /admin" />
+        </div>
+        <div class="flex items-end">
+          <button id="saveCfg" class="btn-primary w-full">Salvar Config</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Criar Pedido -->
+    <section class="card">
+      <h2 class="section-title mb-4">Criar Pedido (Checkout)</h2>
+      <form id="checkoutForm" class="grid md:grid-cols-4 gap-4">
+        <div>
+          <label class="label">Nome</label>
+          <input name="name" class="input" placeholder="Seu nome" required />
+        </div>
+        <div>
+          <label class="label">Email</label>
+          <input name="email" type="email" class="input" placeholder="seu@email.com" required />
+        </div>
+        <div>
+          <label class="label">Tipo de ingresso</label>
+          <select name="ticketType" class="input" required>
+            <option value="VIP">VIP</option>
+            <option value="PISTA">PISTA</option>
+            <option value="MEIA">MEIA</option>
+            <option value="CAMAROTE">CAMAROTE</option>
+          </select>
+        </div>
+        <div class="flex items-end gap-2">
+          <button class="btn-primary w-full" type="submit">Emitir</button>
+        </div>
+      </form>
+      <div id="checkoutResult" class="mt-4 hidden">
+        <div class="p-4 bg-green-50 dark:bg-green-950/40 rounded-xl border border-green-200/60 dark:border-green-900">
+          <p class="font-medium">Pedido criado!</p>
+          <p class="text-sm break-all">ID: <span id="createdId"></span></p>
+          <a id="ticketLink" class="text-indigo-600 underline" target="_blank" rel="noreferrer">Abrir Ticket</a>
+          <div class="mt-3">
+            <img id="qrImg" alt="QR Code" class="w-40 h-40 object-contain" />
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Listagem Admin -->
+    <section class="card">
+      <div class="flex items-center justify-between mb-4">
+        <h2 class="section-title">Pedidos (Admin)</h2>
+        <div class="flex items-center gap-2">
+          <input id="listLimit" type="number" class="input w-28" value="50" min="1" max="2000" />
+          <button id="loadOrders" class="btn-ghost">Carregar</button>
+        </div>
+      </div>
+      <div class="overflow-x-auto">
+        <table class="min-w-full text-sm">
+          <thead class="text-left text-zinc-600 dark:text-zinc-400 border-b border-zinc-200/60 dark:border-zinc-800">
+            <tr>
+              <th class="py-2 pr-4">ID</th>
+              <th class="py-2 pr-4">Nome</th>
+              <th class="py-2 pr-4">Email</th>
+              <th class="py-2 pr-4">Tipo</th>
+              <th class="py-2 pr-4">Status</th>
+              <th class="py-2 pr-4">Criado</th>
+              <th class="py-2 pr-4">Usado</th>
+              <th class="py-2 pr-4">Ações</th>
+            </tr>
+          </thead>
+          <tbody id="ordersTbody" class="divide-y divide-zinc-200/60 dark:divide-zinc-800"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- Ticket / Verify / Scan -->
+    <section class="grid md:grid-cols-3 gap-6">
+      <div class="card">
+        <h2 class="section-title mb-3">Buscar Ticket por ID</h2>
+        <div class="flex gap-2">
+          <input id="ticketId" class="input" placeholder="ID do pedido" />
+          <button id="getTicket" class="btn-ghost">Buscar</button>
+        </div>
+        <pre id="ticketJson" class="mt-3 p-3 bg-zinc-100 dark:bg-zinc-900 rounded-xl overflow-auto text-xs"></pre>
+      </div>
+      <div class="card">
+        <h2 class="section-title mb-3">Verificar QR</h2>
+        <p class="text-xs text-zinc-500 mb-2">Cole o JSON do QR (com <code>payload</code> e <code>sig</code>)</p>
+        <textarea id="verifyInput" class="input h-36" placeholder='{"payload":"...","sig":"...","v":1}'></textarea>
+        <div class="mt-2 flex gap-2">
+          <button id="verifyBtn" class="btn-ghost">Verificar</button>
+        </div>
+        <pre id="verifyOut" class="mt-3 p-3 bg-zinc-100 dark:bg-zinc-900 rounded-xl overflow-auto text-xs"></pre>
+      </div>
+      <div class="card">
+        <h2 class="section-title mb-3">Marcar como Usado (Scan)</h2>
+        <p class="text-xs text-zinc-500 mb-2">Cole o mesmo JSON do QR</p>
+        <textarea id="scanInput" class="input h-36" placeholder='{"payload":"...","sig":"...","v":1}'></textarea>
+        <div class="mt-2 flex gap-2">
+          <button id="scanBtn" class="btn-ghost">Marcar Usado</button>
+        </div>
+        <pre id="scanOut" class="mt-3 p-3 bg-zinc-100 dark:bg-zinc-900 rounded-xl overflow-auto text-xs"></pre>
+      </div>
+    </section>
+  </div>
+
+  <script>
+    const $ = (s) => document.querySelector(s);
+    const $$ = (s) => document.querySelectorAll(s);
+
+    const cfg = {
+      get baseUrl() { return (localStorage.getItem('baseUrl') || '').trim() || window.location.origin; },
+      set baseUrl(v) { localStorage.setItem('baseUrl', (v||'').trim()); },
+      get adminToken() { return (localStorage.getItem('adminToken') || '').trim(); },
+      set adminToken(v) { localStorage.setItem('adminToken', (v||'').trim()); },
+    };
+
+    function api(path) {
+      const base = cfg.baseUrl.replace(/\/$/, '');
+      return `${base}${path.startsWith('/') ? path : '/' + path}`;
+    }
+
+    function setLoading(btn, loading=true) {
+      if (!btn) return;
+      btn.disabled = loading;
+      btn.dataset._txt = btn.dataset._txt || btn.textContent;
+      btn.textContent = loading ? 'Carregando...' : btn.dataset._txt;
+    }
+
+    // Load saved config
+    $('#baseUrl').value = localStorage.getItem('baseUrl') || '';
+    $('#adminToken').value = localStorage.getItem('adminToken') || '';
+
+    $('#saveCfg').addEventListener('click', () => {
+      cfg.baseUrl = $('#baseUrl').value;
+      cfg.adminToken = $('#adminToken').value;
+      alert('Configurações salvas.');
+    });
+
+    // Health
+    $('#healthBtn').addEventListener('click', async (e) => {
+      e.preventDefault();
+      const res = await fetch(api('/api'));
+      const j = await res.json().catch(()=>({}));
+      alert('Status: ' + (j.status || 'desconhecido'));
+    });
+
+    // Checkout
+    $('#checkoutForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const btn = e.submitter || $('#checkoutForm button[type="submit"]');
+      setLoading(btn, true);
+      try {
+        const fd = new FormData(e.target);
+        const body = Object.fromEntries(fd.entries());
+        const res = await fetch(api('/api/checkout'), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Idempotency-Key': cryptoRandom() },
+          body: JSON.stringify(body)
+        });
+        const j = await res.json();
+        if (!res.ok) throw new Error(j.error || 'Erro no checkout');
+        $('#checkoutResult').classList.remove('hidden');
+        $('#createdId').textContent = j.id;
+        $('#ticketLink').href = api('/api/ticket/' + j.id);
+        $('#ticketLink').textContent = api('/api/ticket/' + j.id);
+        $('#qrImg').src = j.qr;
+      } catch (err) {
+        alert(err.message);
+      } finally {
+        setLoading(btn, false);
+      }
+    });
+
+    // List orders (admin)
+    $('#loadOrders').addEventListener('click', async () => {
+      const btn = $('#loadOrders');
+      setLoading(btn, true);
+      try {
+        const limit = Math.max(1, Math.min(2000, Number($('#listLimit').value) || 50));
+        const res = await fetch(api('/api/admin/orders?limit=' + limit), {
+          headers: { 'Authorization': 'Bearer ' + cfg.adminToken }
+        });
+        if (res.status === 401) throw new Error('Token admin inválido ou ausente');
+        const j = await res.json();
+        renderOrders(j.orders || []);
+      } catch (err) {
+        alert(err.message);
+      } finally {
+        setLoading(btn, false);
+      }
+    });
+
+    function renderOrders(list) {
+      const tbody = $('#ordersTbody');
+      tbody.innerHTML = '';
+      list.forEach(o => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td class="py-2 pr-4 align-top"><code class="text-xs break-all">${o.id}</code></td>
+          <td class="py-2 pr-4 align-top">${escapeHtml(o.name)}</td>
+          <td class="py-2 pr-4 align-top">${escapeHtml(o.email)}</td>
+          <td class="py-2 pr-4 align-top">${o.ticketType}</td>
+          <td class="py-2 pr-4 align-top">${o.status || ''}</td>
+          <td class="py-2 pr-4 align-top text-xs">${o.createdAt ? new Date(o.createdAt).toLocaleString() : ''}</td>
+          <td class="py-2 pr-4 align-top text-xs">${o.usedAt ? new Date(o.usedAt).toLocaleString() : '-'}</td>
+          <td class="py-2 pr-4 align-top">
+            <div class="flex gap-2">
+              <a class="btn-ghost text-xs" href="${api('/api/ticket/' + o.id)}" target="_blank">Ticket</a>
+              <button class="btn-ghost text-xs" data-id="${o.id}">Copiar QR JSON</button>
+            </div>
+          </td>
+        `;
+        tbody.appendChild(tr);
+        // ação copiar QR JSON
+        const btn = tr.querySelector('button[data-id]');
+        btn.addEventListener('click', () => copyQrJson(o));
+      });
+    }
+
+    function copyQrJson(order) {
+      // Extrair o JSON do QR (data URL) — assumimos que o QR foi gerado com {payload,sig,v}
+      try {
+        const dataUrl = order.qr;
+        // Não temos o JSON bruto direto aqui (está dentro da imagem). Então só oferecemos copiar a URL do ticket.
+        // Como alternativa, copiamos o link do ticket para pegar o QR pela API.
+        const url = api('/api/ticket/' + order.id);
+        navigator.clipboard.writeText(url).then(() => alert('Link do ticket copiado para a área de transferência.'));
+      } catch (e) {
+        alert('Não foi possível copiar o QR. Abra o ticket e copie do QR exibido.');
+      }
+    }
+
+    // Get ticket by ID
+    $('#getTicket').addEventListener('click', async () => {
+      const id = $('#ticketId').value.trim();
+      if (!id) return alert('Informe o ID');
+      const res = await fetch(api('/api/ticket/' + encodeURIComponent(id)));
+      const j = await res.json();
+      $('#ticketJson').textContent = JSON.stringify(j, null, 2);
+    });
+
+    // Verify
+    $('#verifyBtn').addEventListener('click', async () => {
+      const raw = $('#verifyInput').value.trim();
+      if (!raw) return alert('Cole o JSON do QR');
+      const body = safeParse(raw);
+      if (!body) return alert('JSON inválido');
+      const res = await fetch(api('/api/verify'), {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
+      });
+      const j = await res.json();
+      $('#verifyOut').textContent = JSON.stringify(j, null, 2);
+    });
+
+    // Scan
+    $('#scanBtn').addEventListener('click', async () => {
+      const raw = $('#scanInput').value.trim();
+      if (!raw) return alert('Cole o JSON do QR');
+      const body = safeParse(raw);
+      if (!body) return alert('JSON inválido');
+      const res = await fetch(api('/api/scan'), {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
+      });
+      const j = await res.json();
+      $('#scanOut').textContent = JSON.stringify(j, null, 2);
+    });
+
+    // Export CSV
+    $('#exportCsvBtn').addEventListener('click', async () => {
+      const limit = Math.max(1, Math.min(10000, Number($('#listLimit').value) || 1000));
+      const res = await fetch(api('/api/admin/export.csv?limit=' + limit), {
+        headers: { 'Authorization': 'Bearer ' + cfg.adminToken }
+      });
+      if (!res.ok) {
+        const text = await res.text();
+        return alert('Falha ao exportar CSV: ' + text);
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'orders.csv';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    });
+
+    // Utils
+    function safeParse(s) { try { return JSON.parse(s); } catch { return null; } }
+    function escapeHtml(s='') { return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;'}[c])); }
+    function cryptoRandom() { try { return crypto.getRandomValues(new Uint32Array(4)).join('-'); } catch { return String(Math.random()).slice(2); } }
+  </script>
+</body>
+</html>

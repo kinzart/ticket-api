@@ -9,6 +9,23 @@ const { kv } = require('@vercel/kv');
 const app = express();
 app.use(express.json({ limit: '256kb' }));
 
+// CORS básico (antes de qualquer rota/middleware)
+app.use((req, res, next) => {
+  // Permita seu front local. Para testes: '*'
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  // Métodos permitidos
+  res.setHeader('Access-Control-Allow-Methods', 'GET,POST,OPTIONS');
+  // Headers permitidos (inclui os que usamos)
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, Idempotency-Key');
+
+  // Responder preflight rapidamente
+  if (req.method === 'OPTIONS') {
+    return res.status(204).end();
+  }
+  next();
+});
+
+
 // ========= CONFIG =========
 const QR_SECRET = process.env.QR_SECRET || 'dev-secret-change-me';
 const ADMIN_TOKEN = process.env.ADMIN_TOKEN || null; // defina em produção
